@@ -1,0 +1,44 @@
+//@version=6
+indicator("TIM Bybit Spot Margin Alert Indicator", overlay=true)
+
+// This indicator is inspired by the Bybit Spot Margin tutorial.
+// It uses RSI to generate buy (long) and sell (short) signals for TradingView Alerts.
+// - Buy (Long) signal: RSI crosses above oversold level (< 30).
+// - Sell (Short) signal: RSI crosses above overbought level (> 70).
+// Alerts can be set for these signals to manually trade on Bybit with TP/SL.
+// Improved visualization with debouncing to avoid overlapping signals.
+// Compatible with Pine Script v6; for educational purposes; adjust parameters and test thoroughly.
+
+// Input Parameters
+rsiLength = input.int(14, title="RSI Length")
+rsiOverbought = input.int(70, title="RSI Overbought Level")
+rsiOversold = input.int(30, title="RSI Oversold Level")
+minBarsBetweenSignals = input.int(1, title="Minimum Bars Between Signals", minval=1)
+
+// Calculate RSI
+rsi = ta.rsi(close, rsiLength)
+
+// Define Conditions with Debouncing
+var float lastSignalTime = 0.0
+timeDiff = time - lastSignalTime
+longCondition = ta.crossover(rsi, rsiOversold) and (timeDiff >= minBarsBetweenSignals * 60000 or lastSignalTime == 0.0)
+shortCondition = ta.crossover(rsi, rsiOverbought) and (timeDiff >= minBarsBetweenSignals * 60000 or lastSignalTime == 0.0)
+if longCondition or shortCondition
+    lastSignalTime := time
+
+// Explicit Alert Conditions
+alertcondition(condition=longCondition, title="Bybit Buy Long Alert", message="ALERT: Buy Long triggered - RSI crossed above {{rsiOversold}}. Price: {{close}}")
+alertcondition(condition=shortCondition, title="Bybit Sell Short Alert", message="ALERT: Sell Short triggered - RSI crossed above {{rsiOverbought}}. Price: {{close}}")
+
+// Plot Signals with Improved Styling
+plotshape(longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.tiny)
+plotshape(shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.tiny)
+
+// Plot RSI in a Separate Pane for Clarity (optional)
+plot(rsi, title="RSI", display=display.pane, color=color.blue) // RSI in separate pane
+// Uncomment below for overlay with data tooltip if preferred
+// plot(rsi, title="RSI", color=color.blue, display=display.data_window)
+
+// Plot Horizontal Lines Below Chart
+hline(rsiOverbought, "Overbought", color=color.red, linestyle=hline.style_dotted, display=display.none)
+hline(rsiOversold, "Oversold", color=color.green, linestyle=hline.style_dotted, display=display.none)

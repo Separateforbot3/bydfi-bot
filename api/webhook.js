@@ -1,28 +1,27 @@
 import axios from "axios";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-
-  const data = req.body;
-
-  // 👇 This will show you the raw TradingView alert data in Vercel logs
-  console.log("Webhook body:", req.body);
-
-  const signal = data.signal;
-
-  console.log("Received signal:", signal);
-
   try {
+    if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+
+    const data = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    console.log("Webhook body:", data);
+
+    const signal = data.signal;
+    console.log("Received signal:", signal);
+
+    if (!signal) return res.status(400).send("No signal provided");
+
     if (signal === "LONG") {
       await placeOrder("BUY");
     } else if (signal === "SHORT") {
       await placeOrder("SELL");
     }
 
-    res.status(200).send("Order sent");
+    res.status(200).send("Order attempt complete");
   } catch (err) {
-    console.error(err);
-    res.status(500).send("Error placing order");
+    console.error("Handler error:", err);
+    res.status(500).send("Server error - check logs");
   }
 }
 
@@ -30,15 +29,13 @@ async function placeOrder(side) {
   const apiKey = process.env.API_KEY;
   const apiSecret = process.env.API_SECRET;
 
-  console.log(`Placing ${side} order with API_KEY=${apiKey}`);
+  if (!apiKey || !apiSecret) {
+    console.error("Missing API credentials!");
+    return;
+  }
 
-  await axios.post("https://api.testnet.binance.com/fapi/v1/order", {
-    symbol: "BTCUSDT",
-    side: side,
-    type: "MARKET",
-    quantity: 0.001
-  }, {
-    headers: { "X-MBX-APIKEY": apiKey }
-  });
+  console.log(`Pretend placing ${side} order with API_KEY=${apiKey}`);
+  
+  // TEMP: Comment out axios until signing is fixed
+  // await axios.post("https://api.testnet.binance.com/fapi/v1/order", {...});
 }
-
