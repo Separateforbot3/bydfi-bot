@@ -5,18 +5,22 @@ export default async function handler(req, res) {
   try {
     if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
+    // parse TradingView JSON
     const data = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     console.log("Webhook body:", data);
 
-    const signal = data.signal;
-    console.log("Received signal:", signal);
+    const { signal, symbol, amount } = data;
 
     if (!signal) return res.status(400).send("No signal provided");
+    if (!symbol) return res.status(400).send("No symbol provided");
+    if (!amount) return res.status(400).send("No amount provided");
 
     if (signal === "LONG") {
-      await placeOrder("BUY");
+      await placeOrder(symbol, "BUY", amount);
     } else if (signal === "SHORT") {
-      await placeOrder("SELL");
+      await placeOrder(symbol, "SELL", amount);
+    } else {
+      return res.status(400).send("Invalid signal, must be LONG or SHORT");
     }
 
     res.status(200).send("Order attempt complete");
@@ -26,7 +30,7 @@ export default async function handler(req, res) {
   }
 }
 
-async function placeOrder(side) {
+async function placeOrder(symbol, side, quantity) {
   const apiKey = process.env.API_KEY;
   const apiSecret = process.env.API_SECRET;
 
@@ -39,16 +43,14 @@ async function placeOrder(side) {
     const url = "https://api.bydfi.com/fapi/v1/order"; // BYDFi Futures endpoint
     const timestamp = Date.now().toString();
 
-    // Order body for futures
     const body = {
-      symbol: "BTCUSDT",   // Futures pair
-      side: side,          // "BUY" for LONG, "SELL" for SHORT
-      type: "MARKET",      // Market order
-      positionSide: "BOTH",// Can be "LONG", "SHORT", or "BOTH"
-      quantity: "0.01"     // Contract size - adjust to your needs
+      symbol: symbol.toUpperCase(), // e.g. BTCUSDT
+      side,                        // "BUY" or "SELL"
+      type: "MARKET",               // Market order
+      positionSide: "BOTH",         // Can be "LONG" or "SHORT" if you use hedged positions
+      quantity: quantity.toString() // Contract size
     };
 
-    // BYDFi signing requires timestamp + JSON body
     const payload = timestamp + JSON.stringify(body);
 
     const signature = crypto
@@ -64,7 +66,6 @@ async function placeOrder(side) {
     };
 
     const response = await axios.post(url, body, { headers });
-
     console.log("✅ BYDFi Futures Order Response:", response.data);
   } catch (err) {
     console.error("❌ BYDFi Futures order error:", err.response?.data || err.message);
