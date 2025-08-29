@@ -1,4 +1,5 @@
 import axios from "axios";
+import crypto from "crypto";
 
 export default async function handler(req, res) {
   try {
@@ -20,7 +21,7 @@ export default async function handler(req, res) {
 
     res.status(200).send("Order attempt complete");
   } catch (err) {
-    console.error("Handler error:", err);
+    console.error("Handler error:", err.response?.data || err.message);
     res.status(500).send("Server error - check logs");
   }
 }
@@ -34,8 +35,38 @@ async function placeOrder(side) {
     return;
   }
 
-  console.log(`Pretend placing ${side} order with API_KEY=${apiKey}`);
-  
-  // TEMP: Comment out axios until signing is fixed
-  // await axios.post("https://api.testnet.binance.com/fapi/v1/order", {...});
+  try {
+    const url = "https://api.bydfi.com/fapi/v1/order"; // BYDFi Futures endpoint
+    const timestamp = Date.now().toString();
+
+    // Order body for futures
+    const body = {
+      symbol: "BTCUSDT",   // Futures pair
+      side: side,          // "BUY" for LONG, "SELL" for SHORT
+      type: "MARKET",      // Market order
+      positionSide: "BOTH",// Can be "LONG", "SHORT", or "BOTH"
+      quantity: "0.01"     // Contract size - adjust to your needs
+    };
+
+    // BYDFi signing requires timestamp + JSON body
+    const payload = timestamp + JSON.stringify(body);
+
+    const signature = crypto
+      .createHmac("sha256", apiSecret)
+      .update(payload)
+      .digest("hex");
+
+    const headers = {
+      "Content-Type": "application/json",
+      "X-BYDFI-APIKEY": apiKey,
+      "X-BYDFI-SIGN": signature,
+      "X-BYDFI-TIMESTAMP": timestamp,
+    };
+
+    const response = await axios.post(url, body, { headers });
+
+    console.log("✅ BYDFi Futures Order Response:", response.data);
+  } catch (err) {
+    console.error("❌ BYDFi Futures order error:", err.response?.data || err.message);
+  }
 }
